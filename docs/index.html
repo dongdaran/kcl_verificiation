@@ -103,6 +103,50 @@
     }
     .status-cell { width: 110px; min-width: 110px; color: var(--muted); white-space: nowrap; }
     .bad { color: var(--warn); font-weight: 700; }
+    .review-cell {
+      width: 300px;
+      min-width: 300px;
+      background: #fff;
+    }
+    .review-controls {
+      display: grid;
+      gap: 8px;
+    }
+    .review-checks {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    .review-checks label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #344054;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+    .review-checks input {
+      width: 16px;
+      min-height: 16px;
+      accent-color: var(--accent);
+    }
+    textarea.review-note {
+      width: 100%;
+      min-height: 76px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 8px 10px;
+      color: var(--text);
+      font: inherit;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    textarea.review-note:focus {
+      outline: 2px solid var(--accent-soft);
+      border-color: var(--accent);
+    }
     .lang-cell {
       width: 660px;
       min-width: 660px;
@@ -154,7 +198,9 @@
         <option value="en-zh">EN / ZH</option>
       </select>
       <button id="clearBtn" type="button">초기화</button>
+      <button id="exportBtn" type="button">검수 JSON 내보내기</button>
       <span class="meta">Visible: <strong id="visibleCount">283</strong></span>
+      <span class="meta">Reviewed: <strong id="reviewedCount">0</strong></span>
     </div>
   </header>
   <main>
@@ -166,6 +212,7 @@
             <th>meta</th>
             <th>label</th>
             <th>status</th>
+            <th>review</th>
             <th class="col-ko">Korean</th>
             <th class="col-en">English</th>
             <th class="col-zh">Chinese</th>
@@ -8868,10 +8915,76 @@ const search = document.getElementById('search');
 const labelFilter = document.getElementById('labelFilter');
 const langFilter = document.getElementById('langFilter');
 const clearBtn = document.getElementById('clearBtn');
+const exportBtn = document.getElementById('exportBtn');
 const visibleCount = document.getElementById('visibleCount');
+const reviewedCount = document.getElementById('reviewedCount');
+const storageKey = 'kcl-meta-review-v1';
+const reviewState = loadReviewState();
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+function loadReviewState() {
+  try {
+    return JSON.parse(localStorage.getItem(storageKey)) || {};
+  } catch {
+    return {};
+  }
+}
+function saveReviewState() {
+  localStorage.setItem(storageKey, JSON.stringify(reviewState));
+  updateReviewedCount();
+}
+function getRowMeta(row) {
+  return row.querySelector('.meta-cell')?.textContent.trim() || '';
+}
+function getReview(row) {
+  return reviewState[row.id] || { enOk: false, zhOk: false, note: '' };
+}
+function setReview(row, patch) {
+  const next = { ...getReview(row), ...patch };
+  if (!next.enOk && !next.zhOk && !next.note.trim()) {
+    delete reviewState[row.id];
+  } else {
+    reviewState[row.id] = next;
+  }
+  saveReviewState();
+}
+function updateReviewedCount() {
+  const reviewed = rows.filter(row => {
+    const item = getReview(row);
+    return item.enOk || item.zhOk || item.note.trim();
+  }).length;
+  reviewedCount.textContent = String(reviewed);
+}
+function createReviewCell(row) {
+  if (row.querySelector('.review-cell')) return;
+  const current = getReview(row);
+  const td = document.createElement('td');
+  td.className = 'review-cell';
+  td.innerHTML = `
+    <div class="review-controls">
+      <div class="review-checks">
+        <label><input type="checkbox" data-review-field="enOk"> English OK</label>
+        <label><input type="checkbox" data-review-field="zhOk"> Chinese OK</label>
+      </div>
+      <textarea class="review-note" placeholder="틀린 위치 / 수정 메모"></textarea>
+    </div>
+  `;
+  const enCheck = td.querySelector('[data-review-field="enOk"]');
+  const zhCheck = td.querySelector('[data-review-field="zhOk"]');
+  const note = td.querySelector('.review-note');
+  enCheck.checked = Boolean(current.enOk);
+  zhCheck.checked = Boolean(current.zhOk);
+  note.value = current.note || '';
+  enCheck.addEventListener('change', () => setReview(row, { enOk: enCheck.checked }));
+  zhCheck.addEventListener('change', () => setReview(row, { zhOk: zhCheck.checked }));
+  note.addEventListener('input', () => setReview(row, { note: note.value }));
+  row.querySelector('.status-cell').after(td);
+}
+function initReviewCells() {
+  rows.forEach(createReviewCell);
+  updateReviewedCount();
 }
 function clearMarks(root) {
   root.querySelectorAll('mark').forEach(mark => mark.replaceWith(document.createTextNode(mark.textContent)));
@@ -8938,6 +9051,19 @@ clearBtn.addEventListener('click', () => {
   langFilter.value = 'all';
   applyFilters();
 });
+exportBtn.addEventListener('click', () => {
+  const payload = rows
+    .map(row => ({ id: row.id, meta: getRowMeta(row), ...getReview(row) }))
+    .filter(item => item.enOk || item.zhOk || item.note.trim());
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'kcl-meta-review.json';
+  link.click();
+  URL.revokeObjectURL(url);
+});
+initReviewCells();
 applyFilters();
 </script>
 </body>
