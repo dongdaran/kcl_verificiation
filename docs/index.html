@@ -166,6 +166,47 @@
     }
     .choice-key { font-weight: 800; color: #111827; }
     .choice-text { overflow-wrap: anywhere; }
+    .comparison-block {
+      display: grid;
+      gap: 6px;
+      padding: 10px 0;
+      border-bottom: 1px solid #eef2f6;
+    }
+    .comparison-block:first-child { padding-top: 0; }
+    .comparison-block:last-child { border-bottom: 0; padding-bottom: 0; }
+    .comparison-title {
+      display: inline-flex;
+      align-items: center;
+      width: max-content;
+      min-height: 22px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: #0f3f3a;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .comparison-source,
+    .comparison-target {
+      display: grid;
+      gap: 3px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .comparison-source {
+      color: #111827;
+      font-weight: 650;
+    }
+    .comparison-target {
+      padding-left: 10px;
+      border-left: 3px solid var(--line);
+      color: #344054;
+    }
+    .comparison-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
     mark { background: #fff2b8; color: inherit; padding: 0 1px; }
     .hidden { display: none; }
     @media (max-width: 720px) {
@@ -192,10 +233,10 @@
         <option value="E">Label E</option>
       </select>
       <select id="langFilter">
-        <option value="all">KO / EN / ZH</option>
-        <option value="ko-en">KO / EN</option>
-        <option value="ko-zh">KO / ZH</option>
-        <option value="en-zh">EN / ZH</option>
+        <option value="en-zh" selected>English / Chinese 비교</option>
+        <option value="ko-en">Korean / English</option>
+        <option value="ko-zh">Korean / Chinese</option>
+        <option value="all">Korean / English / Chinese</option>
       </select>
       <button id="clearBtn" type="button">초기화</button>
       <button id="exportBtn" type="button">검수 JSON 내보내기</button>
@@ -214,8 +255,8 @@
             <th>status</th>
             <th>review</th>
             <th class="col-ko">Korean</th>
-            <th class="col-en">English</th>
-            <th class="col-zh">Chinese</th>
+            <th class="col-en">English (KO 아래 EN)</th>
+            <th class="col-zh">Chinese (KO 아래 ZH)</th>
           </tr>
         </thead>
         <tbody>
@@ -8986,6 +9027,64 @@ function initReviewCells() {
   rows.forEach(createReviewCell);
   updateReviewedCount();
 }
+function extractParts(cell) {
+  return {
+    question: cell.querySelector('.question-text')?.textContent.trim() || '',
+    choices: Array.from(cell.querySelectorAll('.choice-row')).map(choice => ({
+      key: choice.querySelector('.choice-key')?.textContent.trim() || '',
+      text: choice.querySelector('.choice-text')?.textContent.trim() || ''
+    }))
+  };
+}
+function addTextBlock(root, className, label, text) {
+  const block = document.createElement('div');
+  block.className = className;
+  const labelEl = document.createElement('div');
+  labelEl.className = 'comparison-label';
+  labelEl.textContent = label;
+  const textEl = document.createElement('div');
+  textEl.textContent = text;
+  block.append(labelEl, textEl);
+  root.append(block);
+}
+function createComparisonBlock(title, koText, targetLabel, targetText) {
+  const block = document.createElement('div');
+  block.className = 'comparison-block';
+  const titleEl = document.createElement('div');
+  titleEl.className = 'comparison-title';
+  titleEl.textContent = title;
+  block.append(titleEl);
+  addTextBlock(block, 'comparison-source', 'Korean', koText);
+  addTextBlock(block, 'comparison-target', targetLabel, targetText);
+  return block;
+}
+function makeComparisonCell(row, targetLang, targetLabel) {
+  const koCell = row.querySelector('.col-ko');
+  const targetCell = row.querySelector(`.col-${targetLang}`);
+  if (!koCell || !targetCell || targetCell.dataset.comparisonReady === 'true') return;
+
+  const ko = extractParts(koCell);
+  const target = extractParts(targetCell);
+  const fragment = document.createDocumentFragment();
+  fragment.append(createComparisonBlock('Question', ko.question, targetLabel, target.question));
+
+  const count = Math.max(ko.choices.length, target.choices.length);
+  for (let index = 0; index < count; index += 1) {
+    const koChoice = ko.choices[index] || {};
+    const targetChoice = target.choices[index] || {};
+    const title = koChoice.key || targetChoice.key || `Choice ${index + 1}`;
+    fragment.append(createComparisonBlock(title, koChoice.text || '', targetLabel, targetChoice.text || ''));
+  }
+
+  targetCell.replaceChildren(fragment);
+  targetCell.dataset.comparisonReady = 'true';
+}
+function initComparisonCells() {
+  rows.forEach(row => {
+    makeComparisonCell(row, 'en', 'English');
+    makeComparisonCell(row, 'zh', 'Chinese');
+  });
+}
 function clearMarks(root) {
   root.querySelectorAll('mark').forEach(mark => mark.replaceWith(document.createTextNode(mark.textContent)));
 }
@@ -9048,7 +9147,7 @@ langFilter.addEventListener('change', setLangColumns);
 clearBtn.addEventListener('click', () => {
   search.value = '';
   labelFilter.value = '';
-  langFilter.value = 'all';
+  langFilter.value = 'en-zh';
   applyFilters();
 });
 exportBtn.addEventListener('click', () => {
@@ -9063,6 +9162,7 @@ exportBtn.addEventListener('click', () => {
   link.click();
   URL.revokeObjectURL(url);
 });
+initComparisonCells();
 initReviewCells();
 applyFilters();
 </script>
