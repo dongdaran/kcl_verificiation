@@ -227,6 +227,7 @@
     }
     mark { background: #fff2b8; color: inherit; padding: 0 1px; }
     .hidden { display: none; }
+    #selectedQuestions { display: none; }
     @media (max-width: 720px) {
       header { padding: 20px 16px 12px; }
       main { padding: 16px; }
@@ -241,7 +242,7 @@
 <body>
   <header>
     <h1>KCL MCQA Human Verification</h1>
-    <div class="meta">Rows: 20 · Label mismatches: 0 · Source: meta-mapped KO/EN/ZH</div>
+    <div class="meta">Rows: 283 · Label mismatches: 0 · Source: meta-mapped KO/EN/ZH</div>
     <div class="controls">
       <input id="search" type="search" placeholder="meta, question, choices 검색">
       <select id="labelFilter">
@@ -260,7 +261,7 @@
       </select>
       <button id="clearBtn" type="button">초기화</button>
       <button id="exportBtn" type="button">검수/수정 JSON 내보내기</button>
-      <span class="meta">Visible: <strong id="visibleCount">20</strong></span>
+      <span class="meta">Visible: <strong id="visibleCount">283</strong></span>
       <span class="meta">Reviewed: <strong id="reviewedCount">0</strong></span>
     </div>
   </header>
@@ -1255,8 +1256,8 @@
     </div>
     </section>
     <section id="allQuestions" class="question-section">
-      <h2>전체 283문제</h2>
-      <p class="section-note">원본 전체 문제를 따로 확인하는 참고용 영역입니다.</p>
+      <h2>전체 검수 대상 283개</h2>
+      <p class="section-note">전체 문제의 English / Chinese 번역을 검수하고 직접 수정하는 영역입니다.</p>
       <div class="table-wrap">
         <table>
           <thead>
@@ -1265,9 +1266,10 @@
               <th>meta</th>
               <th>label</th>
               <th>status</th>
+              <th>review</th>
               <th class="col-ko">Korean</th>
-              <th class="col-en">English</th>
-              <th class="col-zh">Chinese</th>
+              <th class="col-en">English 수정</th>
+              <th class="col-zh">Chinese 수정</th>
             </tr>
           </thead>
           <tbody>
@@ -9964,7 +9966,8 @@ On 2009. 6. 1., A Church applied to the head of B District Office of A City for 
     </section>
   </main>
 <script>
-const rows = Array.from(document.querySelectorAll('#selectedQuestions tbody tr'));
+const reviewScope = document.getElementById('allQuestions');
+const rows = Array.from(reviewScope.querySelectorAll('tbody tr'));
 const search = document.getElementById('search');
 const labelFilter = document.getElementById('labelFilter');
 const langFilter = document.getElementById('langFilter');
@@ -10170,7 +10173,7 @@ function setLangColumns() {
   const mode = langFilter.value;
   const visible = mode === 'all' ? ['ko', 'en', 'zh'] : mode.split('-');
   for (const lang of ['ko', 'en', 'zh']) {
-    document.querySelectorAll(`#selectedQuestions .col-${lang}`).forEach(el => el.classList.toggle('hidden', !visible.includes(lang)));
+    reviewScope.querySelectorAll(`.col-${lang}`).forEach(el => el.classList.toggle('hidden', !visible.includes(lang)));
   }
 }
 function applyFilters() {
